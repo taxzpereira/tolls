@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Encryption and Decryption</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="file"], button {
+            width: calc(100% - 20px);
+            margin: 0 auto 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input[type="file"] {
+            padding: 5px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .radio-group {
+            margin: 15px 0;
+        }
+
+        .radio-group label {
+            font-weight: normal;
+            margin-right: 15px;
+        }
+
+        #downloadLink {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: white;
+            background-color: #007BFF;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #downloadLink:hover {
+            background-color: #0056b3;
+        }
+
+        .error {
+            color: #FF0000;
+            font-size: 14px;
+            margin-top: -10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Encrypt and Decrypt Files</h1>
+        <form id="cryptoForm">
+            <label for="key">Encryption/Decryption Key</label>
+            <input type="text" id="key" placeholder="Enter your key" required>
+
+            <label for="file">Select File</label>
+            <input type="file" id="file" required>
+
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="action" value="encrypt" checked> Encrypt
+                </label>
+                <label>
+                    <input type="radio" name="action" value="decrypt"> Decrypt
+                </label>
+            </div>
+
+            <button type="submit">Submit</button>
+        </form>
+
+        <a id="downloadLink" style="display: none;" download="processed_file">Download Processed File</a>
+        <p id="error" class="error" style="display: none;"></p>
+    </div>
+
+    <script>
+        async function deriveKey(key, salt) {
+            const encoder = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw",
+                encoder.encode(key),
+                "PBKDF2",
+                false,
+                ["deriveKey"]
+            );
+
+            return crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt: salt,
+                    iterations: 100000,
+                    hash: "SHA-256"
+                },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptFile(file, key) {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const derivedKey = await deriveKey(key, salt);
+
+            const fileBuffer = await file.arrayBuffer();
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+
+            const encrypted = await crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv },
+                derivedKey,
+                fileBuffer
+            );
+
+            const encryptedFile = new Uint8Array(
+                salt.byteLength + iv.byteLength + encrypted.byteLength
+            );
+            encryptedFile.set(salt, 0);
+            encryptedFile.set(iv, salt.byteLength);
+            encryptedFile.set(new Uint8Array(encrypted), salt.byteLength + iv.byteLength);
+
+            return encryptedFile;
+        }
+
+        async function decryptFile(file, key) {
+            const fileBuffer = await file.arrayBuffer();
+            const encryptedData = new Uint8Array(fileBuffer);
+
+            const salt = encryptedData.slice(0, 16);
+            const iv = encryptedData.slice(16, 28);
+            const data = encryptedData.slice(28);
+
+            const derivedKey = await deriveKey(key, salt);
+
+            return crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                derivedKey,
+                data
+            );
+        }
+
+        document.getElementById("cryptoForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const key = document.getElementById("key").value;
+            const fileInput = document.getElementById("file").files[0];
+            const action = document.querySelector('input[name="action"]:checked').value;
+            const errorElement = document.getElementById("error");
+
+            errorElement.style.display = "none";
+
+            if (!key || !fileInput) {
+                errorElement.textContent = "Please provide a key and select a file.";
+                errorElement.style.display = "block";
+                return;
+            }
+
+            try {
+                let processedFile;
+                if (action === "encrypt") {
+                    processedFile = await encryptFile(fileInput, key);
+                } else if (action === "decrypt") {
+                    processedFile = await decryptFile(fileInput, key);
+                }
+
+                const blob = new Blob([processedFile], { type: "application/octet-stream" });
+                const downloadLink = document.getElementById("downloadLink");
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.style.display = "inline-block";
+                downloadLink.textContent = `Download ${action === "encrypt" ? "Encrypted" : "Decrypted"} File`;
+            } catch (error) {
+                console.error(`${action.charAt(0).toUpperCase() + action.slice(1)}ion failed:`, error);
+                errorElement.textContent = `An error occurred during ${action}ion.`;
+                errorElement.style.display = "block";
+            }
+        });
+    </script>
+</body>
+</html>
