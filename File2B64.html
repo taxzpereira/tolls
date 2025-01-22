@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base64 Encoder and Decoder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    h1, h2 {
+      text-align: center;
+      color: #444;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #007BFF;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      display: block;
+      margin: 10px auto;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    textarea {
+      height: 150px;
+      resize: none;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section p {
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Base64 Encoder and Decoder</h1>
+
+    <!-- Encoder Section -->
+    <div class="section">
+      <h2>Encode File to Base64</h2>
+      <input type="file" id="fileInput" />
+      <button onclick="encodeFile()">Encode to Base64</button>
+      <p><strong>Encoded Base64 Output:</strong></p>
+      <textarea id="outputEncode" readonly></textarea>
+    </div>
+
+    <!-- Decoder Section -->
+    <div class="section">
+      <h2>Decode Base64 to File</h2>
+      <textarea id="inputDecode" placeholder="Paste Base64 string here"></textarea>
+      <input type="text" id="fileName" placeholder="Enter file name (e.g., output.txt)" />
+      <button onclick="decodeFile()">Decode and Download</button>
+    </div>
+  </div>
+
+  <script>
+    function encodeFile() {
+      const fileInput = document.getElementById('fileInput');
+      const outputEncode = document.getElementById('outputEncode');
+
+      if (fileInput.files.length === 0) {
+        alert('Please select a file first!');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        const base64 = event.target.result.split(',')[1]; // Remove prefix
+        outputEncode.value = base64;
+      };
+
+      reader.onerror = function (event) {
+        alert('Error reading file: ' + event.target.error.code);
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    function decodeFile() {
+      const inputDecode = document.getElementById('inputDecode').value.trim();
+      const fileName = document.getElementById('fileName').value.trim();
+
+      if (!inputDecode) {
+        alert('Please enter a Base64 string to decode!');
+        return;
+      }
+
+      if (!fileName) {
+        alert('Please provide a file name for the decoded file!');
+        return;
+      }
+
+      try {
+        const byteCharacters = atob(inputDecode);
+        const byteNumbers = new Array(byteCharacters.length);
+
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray]);
+        const link = document.createElement('a');
+
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+      } catch (error) {
+        alert('Error decoding Base64: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
